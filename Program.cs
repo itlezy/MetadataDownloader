@@ -78,6 +78,8 @@ namespace MetadataDownloader
             private const int MAIN_LOOP_INTERVAL = 3000;
             private const int TORRENT_PARALLEL_LIMIT = 33;
 
+            private int timeoutCount = 0, downloadedCount = 0;
+
             private String GetNextHashId ()
             {
                 var client = new MongoClient ("mongodb://127.0.0.1:27017/tor");
@@ -105,44 +107,38 @@ namespace MetadataDownloader
                 return mTorrent.Id;
             }
 
-            private String UpdateHashId (
-                String hashId,
-                String torrentName,
-                long torrentLength,
-                String torrentComment,
-                bool timeout
-                )
+            private String UpdateHashId (MTorrent mTorrentU)
             {
                 var client = new MongoClient ("mongodb://127.0.0.1:27017/tor");
                 var database = client.GetDatabase ("tor");
                 var collection = database.GetCollection<MTorrent> ("torrsv1");
                 //var mTorrent = collection.Find (x => x.Processed == false).FirstOrDefault ();
 
-                Expression<Func<MTorrent, bool>> filter = m => (m.Id == hashId);
+                Expression<Func<MTorrent, bool>> filter = m => (m.Id == mTorrentU.Id);
 
                 var update = Builders<MTorrent>.Update
                     .Set (m => m.Processed, true)
-                    .Set (m => m.Downloaded, !timeout)
+                    .Set (m => m.Downloaded, !mTorrentU.Timeout)
                     .Set (m => m.DownloadedTime, DateTime.UtcNow)
-                    .Set (m => m.Name, torrentName)
-                    .Set (m => m.Comment, torrentComment)
-                    .Set (m => m.Length, torrentLength)
-                    .Set (m => m.Timeout, timeout);
+                    .Set (m => m.Name, mTorrentU.Name)
+                    .Set (m => m.Comment, mTorrentU.Comment)
+                    .Set (m => m.Length, mTorrentU.Length)
+                    .Set (m => m.Timeout, mTorrentU.Timeout);
 
                 var options = new FindOneAndUpdateOptions<MTorrent, MTorrent> {
                     IsUpsert = false,
                     ReturnDocument = ReturnDocument.After
                 };
 
-                var mTorrent = collection.FindOneAndUpdate (filter, update, options);
+                var mTorrentR = collection.FindOneAndUpdate (filter, update, options);
 
                 Console.WriteLine ("UpdateHashId() Torrent {0}, processedTime {1}, downloadedTime {2}, timeout {3}",
-                    mTorrent.Id,
-                    mTorrent.ProcessedTime,
-                    mTorrent.DownloadedTime,
-                    timeout);
+                    mTorrentR.Id,
+                    mTorrentR.ProcessedTime,
+                    mTorrentR.DownloadedTime,
+                    mTorrentR.Timeout);
 
-                return mTorrent.Id;
+                return mTorrentR.Id;
             }
 
             public async Task DownloadAsync (
@@ -167,11 +163,15 @@ namespace MetadataDownloader
                             manager.Files.OrderByDescending (t => t.Length).First ().FullPath);
 
                         UpdateHashId (
-                            link.InfoHashes.V1.ToHex ().ToLower (),
-                            manager.Torrent.Name,
-                            manager.Torrent.Size,
-                            manager.Torrent.Comment,
-                            false);
+                            new MTorrent () {
+                                Id = link.InfoHashes.V1.ToHex ().ToLower (),
+                                Name = manager.Torrent.Name,
+                                Length = manager.Torrent.Size,
+                                Comment = manager.Torrent.Comment,
+                                Timeout = false
+                            });
+
+                        downloadedCount++;
                     }
 
                     try {
@@ -183,7 +183,6 @@ namespace MetadataDownloader
                     await engine.RemoveAsync (link);
                 }
             }
-
 
             public async Task MainLoop (CancellationToken token)
             {
@@ -213,7 +212,13 @@ namespace MetadataDownloader
                     Console.WriteLine ("MainLoop() uPnP or NAT-PMP port mappings will be created for any ports needed by MonoTorrent");
 
                 while (true) {
-                    Console.WriteLine ("MainLoop() Checking for torrents count {0} / {1}", engine.Torrents.Count, TORRENT_PARALLEL_LIMIT);
+                    Console.WriteLine ("MainLoop() Checking for torrents count {0} / {1} - Dowloaded {2}, Timedout {3}",
+                        engine.Torrents.Count,
+                        TORRENT_PARALLEL_LIMIT,
+                        downloadedCount,
+                        timeoutCount
+                        );
+
                     await Task.Delay (MAIN_LOOP_INTERVAL);
 
                     if (engine.Torrents.Count < TORRENT_PARALLEL_LIMIT) {
@@ -222,16 +227,19 @@ namespace MetadataDownloader
                         DownloadAsync (hash, engine, token);
                     } else {
                         // FIFO logic, just remove the oldest
-
                         var torrent = engine.Torrents.First ();
                         Console.WriteLine ("MainLoop() Removing timedout torrent {0}", torrent.InfoHashes.V1.ToHex ().ToLower ());
 
                         UpdateHashId (
-                          torrent.InfoHashes.V1.ToHex ().ToLower (),
-                          null,
-                          0,
-                          null,
-                          true);
+                            new MTorrent () {
+                                Id = torrent.InfoHashes.V1.ToHex ().ToLower (),
+                                Name = null,
+                                Length = 0,
+                                Comment = null,
+                                Timeout = true
+                            });
+
+                        timeoutCount++;
 
                         await torrent.StopAsync ();
                         await engine.RemoveAsync (torrent);
@@ -249,9 +257,6 @@ namespace MetadataDownloader
                     }
                 }
             }
-
-
         }
-
     }
 }
