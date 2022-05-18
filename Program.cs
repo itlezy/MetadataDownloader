@@ -15,6 +15,8 @@ using MongoDB.Driver;
 using MongoDB.Bson.Serialization.Attributes;
 using System.Linq.Expressions;
 
+using static Crayon.Output;
+
 namespace MetadataDownloader
 {
     class Program
@@ -75,8 +77,9 @@ namespace MetadataDownloader
         class QueueManager
         {
             // The timeout will be determined by TORRENT_PARALLEL_LIMIT * MAIN_LOOP_INTERVAL as torrents get removed on a FIFO logic basis
-            private const int MAIN_LOOP_INTERVAL = 999;
+            private const int MAIN_LOOP_INTERVAL = 1333;
             private const int TORRENT_PARALLEL_LIMIT = 123;
+            private const int TORRENT_STOP_TIMEOUT = 3; // seconds
             private const string TORRENT_OUTPUT_PATH = @"c:\tmp_out\";
             private const string DB_URL = "mongodb://127.0.0.1:27017/tor";
             private const string DB_NAME = "tor";
@@ -105,9 +108,9 @@ namespace MetadataDownloader
 
                 var mTorrent = collection.FindOneAndUpdate (filter, update, options);
 
-                Console.WriteLine ("GetNextHashId() Found torr {0}, processedTime {1}",
-                    mTorrent.Id,
-                    mTorrent.ProcessedTime);
+                //Console.WriteLine ("GetNextHashId()  Found Torrent {0}, processedTime {1}",
+                //    mTorrent.Id,
+                //    mTorrent.ProcessedTime);
 
                 return mTorrent.Id;
             }
@@ -136,11 +139,11 @@ namespace MetadataDownloader
 
                 var mTorrentR = collection.FindOneAndUpdate (filter, update, options);
 
-                Console.WriteLine ("UpdateHashId() Torrent {0}, processedTime {1}, downloadedTime {2}, timeout {3}",
-                    mTorrentR.Id,
-                    mTorrentR.ProcessedTime,
-                    mTorrentR.DownloadedTime,
-                    mTorrentR.Timeout);
+                //Console.WriteLine ("UpdateHashId()   Torrent {0}, processedTime {1}, downloadedTime {2}, timeout {3}",
+                //    mTorrentR.Id,
+                //    mTorrentR.ProcessedTime,
+                //    mTorrentR.DownloadedTime,
+                //    mTorrentR.Timeout);
             }
 
             public async Task DownloadAsync (
@@ -148,25 +151,25 @@ namespace MetadataDownloader
                 ClientEngine engine,
                 CancellationToken token)
             {
-                if (MagnetLink.TryParse (MAGNET_PREFIX + hash, out MagnetLink link)) {
+                if (MagnetLink.TryParse (MAGNET_PREFIX + hash, out MagnetLink magnetLink)) {
 
-                    var manager = await engine.AddAsync (link, TMP_SAVE_DIR);
+                    var manager = await engine.AddAsync (magnetLink, TMP_SAVE_DIR);
 
-                    Console.WriteLine ("DownloadAsync() Adding torrent {0}", link.InfoHashes.V1.ToHex ().ToLower ());
+                    Console.WriteLine (
+                        $"DownloadAsync()  Adding   torrent {Green (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}");
 
                     await manager.StartAsync ();
                     await manager.WaitForMetadataAsync (token);
 
                     if (manager.HasMetadata && manager.Files.Count > 0) {
-                        Console.WriteLine ("DownloadAsync() Metadata Received {0}\n\t{1}\n\t{2}\n\t{3}\n",
-                            link.InfoHashes.V1.ToHex ().ToLower (),
-                            manager.MetadataPath,
-                            manager.Torrent.Name,
-                            manager.Files.OrderByDescending (t => t.Length).First ().FullPath);
+                        Console.WriteLine (
+                            $"DownloadAsync()  Metadata Received {Green (magnetLink.InfoHashes.V1.ToHex ().ToLower ())} * - [ {Magenta (manager.Torrent.Name)} ] - *");
+
+                        //manager.Files.OrderByDescending (t => t.Length).First ().FullPath);
 
                         UpdateHashId (
                             new MTorrent () {
-                                Id = link.InfoHashes.V1.ToHex ().ToLower (),
+                                Id = magnetLink.InfoHashes.V1.ToHex ().ToLower (),
                                 Name = manager.Torrent.Name,
                                 Length = manager.Torrent.Size,
                                 Comment = manager.Torrent.Comment,
@@ -182,7 +185,13 @@ namespace MetadataDownloader
                         Console.Error.WriteLine (ex.Message);
                     }
 
-                    await engine.RemoveAsync (link, RemoveMode.CacheDataAndDownloadedData);
+                    await manager.StopAsync (new TimeSpan (0, 0, TORRENT_STOP_TIMEOUT));
+
+                    try {
+                        await engine.RemoveAsync (manager.Torrent, RemoveMode.CacheDataAndDownloadedData);
+                    } catch (Exception ex) {
+                        Console.Error.WriteLine (ex.Message);
+                    }
                 }
             }
 
@@ -211,18 +220,18 @@ namespace MetadataDownloader
                 using var engine = new ClientEngine (settingBuilder.ToSettings ());
 
                 if (engine.Settings.AllowPortForwarding)
-                    Console.WriteLine ("MainLoop() uPnP or NAT-PMP port mappings will be created for any ports needed by MonoTorrent");
+                    Console.WriteLine ("MainLoop()       uPnP or NAT-PMP port mappings will be created for any ports needed by MonoTorrent");
 
                 while (true) {
-                    Console.WriteLine ("MainLoop() Checking for torrents count {0} / {1} - Dowloaded {2}, Timedout {3} - DHT nodes {4}",
+                    await Task.Delay (MAIN_LOOP_INTERVAL);
+
+                    Console.WriteLine ("MainLoop()       Checking for torrents count {0} / {1} - Dowloaded {2}, Timedout {3} - DHT nodes {4}",
                         engine.Torrents.Count,
                         TORRENT_PARALLEL_LIMIT - 1,
                         downloadedCount,
                         timeoutCount,
                         engine.Dht.NodeCount
                         );
-
-                    await Task.Delay (MAIN_LOOP_INTERVAL);
 
                     if (engine.Torrents.Count < TORRENT_PARALLEL_LIMIT) {
                         var hash = GetNextHashId ();
@@ -231,7 +240,7 @@ namespace MetadataDownloader
                     } else {
                         // FIFO logic, just remove the oldest
                         var torrent = engine.Torrents.First ();
-                        Console.WriteLine ("MainLoop() Removing timedout torrent {0}", torrent.InfoHashes.V1.ToHex ().ToLower ());
+                        Console.WriteLine ($"MainLoop()       Removing torrent {Red (torrent.InfoHashes.V1.ToHex ().ToLower ())}");
 
                         UpdateHashId (
                             new MTorrent () {
@@ -244,17 +253,22 @@ namespace MetadataDownloader
 
                         timeoutCount++;
 
-                        await torrent.StopAsync ();
-                        await engine.RemoveAsync (torrent, RemoveMode.CacheDataAndDownloadedData);
+                        await torrent.StopAsync (new TimeSpan (0, 0, TORRENT_STOP_TIMEOUT));
+
+                        try {
+                            await engine.RemoveAsync (torrent, RemoveMode.CacheDataAndDownloadedData);
+                        } catch (Exception ex) {
+                            Console.Error.WriteLine (ex.Message);
+                        }
                     }
 
                     if (token.IsCancellationRequested) {
                         await engine.StopAllAsync ();
 
                         if (engine.Settings.AllowPortForwarding)
-                            Console.WriteLine ("MainLoop() uPnP and NAT-PMP port mappings have been removed");
+                            Console.WriteLine ("MainLoop()       uPnP and NAT-PMP port mappings have been removed");
 
-                        Console.WriteLine ("MainLoop() Cancellation request received, exiting..");
+                        Console.WriteLine ("MainLoop()       Cancellation request received, exiting..");
 
                         break;
                     }
