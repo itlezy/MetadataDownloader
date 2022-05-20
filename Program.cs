@@ -77,7 +77,7 @@ namespace MetadataDownloader
         class QueueManager
         {
             // The timeout will be determined by TORRENT_PARALLEL_LIMIT * MAIN_LOOP_INTERVAL as torrents get removed on a FIFO logic basis
-            private const int MAIN_LOOP_INTERVAL = 999;
+            private const int MAIN_LOOP_INTERVAL = 666;
             private const int TORRENT_PARALLEL_LIMIT = 163;
             private const int TORRENT_STOP_TIMEOUT = 3; // seconds
             private const string TORRENT_OUTPUT_PATH = @"c:\tmp_out\";
@@ -163,7 +163,7 @@ namespace MetadataDownloader
 
                     if (manager.HasMetadata && manager.Files.Count > 0) {
                         Console.WriteLine (
-                            $"DownloadAsync()  Metadata Received {Green (magnetLink.InfoHashes.V1.ToHex ().ToLower ())} * - [ {Magenta (manager.Torrent.Name)} ] - *");
+                            $"DownloadAsync()  Metadata Received {Green (magnetLink.InfoHashes.V1.ToHex ().ToLower ())} - * [ {Magenta (manager.Torrent.Name)} ] * -");
 
                         //manager.Files.OrderByDescending (t => t.Length).First ().FullPath
 
