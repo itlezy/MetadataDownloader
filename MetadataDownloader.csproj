@@ -41,6 +41,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -50,10 +51,22 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Classes\ApplcConfig.cs" />
+    <Compile Include="Classes\DAO.cs" />
+    <Compile Include="Classes\DAOModel.cs" />
+    <Compile Include="Classes\MTorrent.cs" />
+    <Compile Include="Classes\SQueueManager.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Classes\QueueManager.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="001_loadHashesToDB.cmd">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="002_loadHashesToDBExisting.cmd">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
@@ -71,6 +84,9 @@
     <PackageReference Include="MongoDB.Driver" Version="2.15.1" />
     <PackageReference Include="MongoDB.Driver" Version="2.11.6" />
     <PackageReference Include="MongoDB.Driver" Version="2.11.6" />
+    <PackageReference Include="sqlite-net-pcl" Version="1.8.116" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.0.7" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.0.7" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="download.ico" />
