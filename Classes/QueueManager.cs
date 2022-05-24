@@ -22,6 +22,7 @@ namespace MetadataDownloader
         MDConfig ac = new MDConfig ();
         DAO dao = new DAO ();
         int timeoutCount = 0, downloadedCount = 0, skippedCount = 0;
+        DateTime lastDowloaded = DateTime.Now;
 
         public async Task DownloadAsync (
             String hash,
@@ -33,7 +34,7 @@ namespace MetadataDownloader
                 var manager = await engine.AddAsync (magnetLink, ac.TMP_SAVE_DIR);
 
                 Console.WriteLine (
-                    $"DownloadAsync()  Adding   torrent {Green (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}");
+                    $"DownloadAsync()  Adding   torrent  {Green (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}");
 
                 await manager.StartAsync ();
                 await manager.WaitForMetadataAsync (token);
@@ -63,20 +64,21 @@ namespace MetadataDownloader
                         if (fLen < (512 * 1024 * 1024)) {
                             skippedCount++;
 
-                            Console.WriteLine ($"DownloadAsync()  Skipping torrent {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, file too small [ {fName} ], {fLen}");
+                            Console.WriteLine ($"DownloadAsync()  Skipping torrent  {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, file too small [ {fName} ], {fLen}");
 
                         } else if (dao.HasBeenDownloaded (new MDownloadedFile () { FileName = fName, Length = fLen })) {
                             skippedCount++;
 
-                            Console.WriteLine ($"DownloadAsync()  Skipping torrent {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, already downloaded [ {fName} ], {fLen}");
+                            Console.WriteLine ($"DownloadAsync()  Skipping torrent  {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, already downloaded [ {fName} ], {fLen}");
 
                         } else if (!new FileNameManager ().IsMostlyLatin (manager.Torrent.Name)) {
                             skippedCount++;
 
-                            Console.WriteLine ($"DownloadAsync()  Skipping torrent {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, non latin file [ {fName} ], {fLen}");
+                            Console.WriteLine ($"DownloadAsync()  Skipping torrent  {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, non latin file [ {fName} ], {fLen}");
 
                         } else {
                             downloadedCount++;
+                            lastDowloaded = DateTime.Now;
 
                             var subCat = new FileNameManager ().GetSubCat (manager.Torrent.Name);
 
@@ -137,13 +139,14 @@ namespace MetadataDownloader
             while (true) {
                 await Task.Delay (ac.MAIN_LOOP_INTERVAL);
 
-                Console.WriteLine ("MainLoop()       Checking for torrents count {0} / {1} - Dowloaded {2}, Timedout {3}, Skipped {4} - DHT nodes {5}",
+                Console.WriteLine ("MainLoop()       Checking for torrents count {0} / {1} - Dowloaded {2}, Timedout {3}, Skipped {4} - DHT nodes {5}, last Downloaded at {6}",
                     engine.Torrents.Count,
                     ac.TORRENT_PARALLEL_LIMIT - 1,
                     downloadedCount,
                     timeoutCount,
                     skippedCount,
-                    engine.Dht.NodeCount
+                    engine.Dht.NodeCount,
+                    lastDowloaded.ToLongTimeString()
                     );
 
                 if (engine.Torrents.Count < ac.TORRENT_PARALLEL_LIMIT) {
@@ -153,7 +156,7 @@ namespace MetadataDownloader
                 } else {
                     // FIFO logic, just remove the oldest
                     var torrent = engine.Torrents.First ();
-                    Console.WriteLine ($"MainLoop()       Removing torrent {Red (torrent.InfoHashes.V1.ToHex ().ToLower ())}");
+                    Console.WriteLine ($"MainLoop()       Removing torrent  {Red (torrent.InfoHashes.V1.ToHex ().ToLower ())}");
 
                     dao.UpdateHashId (
                        new MTorr () {

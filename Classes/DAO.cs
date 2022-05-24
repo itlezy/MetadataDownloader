@@ -62,18 +62,20 @@ namespace MetadataDownloader
                 var query = "SELECT * FROM MTorr WHERE (Processed <> true) ORDER BY CountSeen DESC LIMIT 1";
                 var mTorr = db.Query<MTorr> (query).FirstOrDefault ();
 
-                Console.WriteLine ("GetNextHashId()  Found Torrent {0}, countSeen {2}, processedTime {1}",
-                    mTorr.HashId,
-                    mTorr.ProcessedTime,
-                    mTorr.CountSeen
-                    );
+                if (ac.DEBUG_MODE)
+                    Console.WriteLine ("GetNextHashId()  Found Torrent {0}, countSeen {2}, processedTime {1}",
+                        mTorr.HashId,
+                        mTorr.ProcessedTime,
+                        mTorr.CountSeen
+                        );
 
                 mTorr.Processed = true;
                 mTorr.ProcessedTime = DateTime.UtcNow;
 
                 var upds = db.Update (mTorr);
 
-                Console.WriteLine ("GetNextHashId()  Found Torrent {0}, updated {1} record", mTorr.HashId, upds);
+                if (ac.DEBUG_MODE)
+                    Console.WriteLine ("GetNextHashId()  Found Torrent {0}, updated {1} record", mTorr.HashId, upds);
 
                 return mTorr.HashId;
             }
@@ -94,11 +96,12 @@ namespace MetadataDownloader
             using (var db = new SQLiteConnection (ac.SDB_URL)) {
                 var mTorr = db.Query<MTorr> ("SELECT * FROM MTorr WHERE HashId = ? LIMIT 1", mTorrentU.HashId).FirstOrDefault ();
 
-                Console.WriteLine ("UpdateHashId()   Found Torrent {0}, countSeen {2}, processedTime {1}",
-                    mTorr.HashId,
-                    mTorr.ProcessedTime,
-                    mTorr.CountSeen
-                    );
+                if (ac.DEBUG_MODE)
+                    Console.WriteLine ("UpdateHashId()   Found Torrent {0}, countSeen {2}, processedTime {1}",
+                        mTorr.HashId,
+                        mTorr.ProcessedTime,
+                        mTorr.CountSeen
+                        );
 
                 mTorr.Processed = true;
                 mTorr.Downloaded = !mTorrentU.Timeout;
@@ -111,7 +114,8 @@ namespace MetadataDownloader
 
                 var upds = db.Update (mTorr);
 
-                Console.WriteLine ("UpdateHashId()   Found Torrent {0}, updated {1} record", mTorr.HashId, upds);
+                if (ac.DEBUG_MODE)
+                    Console.WriteLine ("UpdateHashId()   Found Torrent {0}, updated {1} record", mTorr.HashId, upds);
             }
         }
 

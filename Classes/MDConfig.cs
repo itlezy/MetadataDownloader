@@ -23,5 +23,6 @@ namespace MetadataDownloader
         public readonly string SDB_URL = ConfigurationManager.AppSettings["SDB_URL"];
         public readonly string SDB_DLD_URL = ConfigurationManager.AppSettings["SDB_DLD_URL"];
 
+        public readonly bool DEBUG_MODE = false;
     }
 }
