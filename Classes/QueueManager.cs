@@ -59,26 +59,32 @@ namespace MetadataDownloader
                         var fLen = manager.Files.OrderByDescending (t => t.Length).First ().Length;
 
                         // here I can decide if the torrent largest file already exists, then I can skip to save it
-                        if (
-                            dao.HasBeenDownloaded (
-                                new MDownloadedFile () {
-                                    FileName = fName,
-                                    Length = fLen
-                                })
 
-                            ||
-
-                            !new FileNameManager ().IsMostlyLatin (manager.Torrent.Name)
-                            ) {
-                            // skip file
+                        if (fLen < (512 * 1024 * 1024)) {
                             skippedCount++;
 
-                            Console.WriteLine ($"DownloadAsync()  Skipping torrent {Red (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, file exists {fName}, {fLen}");
+                            Console.WriteLine ($"DownloadAsync()  Skipping torrent {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, file too small [ {fName} ], {fLen}");
+
+                        } else if (dao.HasBeenDownloaded (new MDownloadedFile () { FileName = fName, Length = fLen })) {
+                            skippedCount++;
+
+                            Console.WriteLine ($"DownloadAsync()  Skipping torrent {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, already downloaded [ {fName} ], {fLen}");
+
+                        } else if (!new FileNameManager ().IsMostlyLatin (manager.Torrent.Name)) {
+                            skippedCount++;
+
+                            Console.WriteLine ($"DownloadAsync()  Skipping torrent {Yellow (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, non latin file [ {fName} ], {fLen}");
 
                         } else {
                             downloadedCount++;
 
-                            File.Copy (manager.MetadataPath, ac.TORRENT_OUTPUT_PATH + manager.Torrent.Name + ".torrent");
+                            var subCat = new FileNameManager ().GetSubCat (manager.Torrent.Name);
+
+                            File.Copy (manager.MetadataPath,
+                                ac.TORRENT_OUTPUT_PATH + subCat + @"\" +
+                                "G" + (10 * Math.Round ((double) fLen / (1024 * 1024 * 1024), 1)) + "_" +
+                                manager.Torrent.Name + ".torrent");
+
                         }
                     } catch (Exception ex) {
                         Console.Error.WriteLine (ex.Message);
