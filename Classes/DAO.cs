@@ -21,7 +21,6 @@ namespace MetadataDownloader
                 db.CreateTable<MTorrLog> ();
                 db.CreateTable<MTorr> ();
 
-                Console.WriteLine ("Tables created..");
             }
 
             using (var db = new SQLiteConnection (ac.SDB_URL)) {
@@ -29,11 +28,15 @@ namespace MetadataDownloader
                     "CREATE UNIQUE INDEX \"MTorrLog_UQ\" ON \"MTorrLog\" ( \"HashId\"    ASC, \"SeenAt\"    ASC )"
                 );
 
-                Console.WriteLine ("Unique index created {0}", ins);
             }
 
         }
 
+        /// <summary>
+        /// Updates the torrents' status by processing local metadata torrent files, so to avoid duplicates
+        /// </summary>
+        /// <param name="torrs"></param>
+        /// <returns></returns>
         public int UpdateDownloadedTorrentsStatus (List<MTorr> torrs)
         {
             using (var db = new SQLiteConnection (ac.SDB_URL)) {

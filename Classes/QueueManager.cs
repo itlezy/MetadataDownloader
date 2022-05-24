@@ -6,6 +6,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
+using ILCommon;
 using ILCommon.IO;
 using ILCommon.Model;
 
@@ -20,7 +21,7 @@ namespace MetadataDownloader
     {
         MDConfig ac = new MDConfig ();
         DAO dao = new DAO ();
-        int timeoutCount = 0, downloadedCount = 0;
+        int timeoutCount = 0, downloadedCount = 0, skippedCount = 0;
 
         public async Task DownloadAsync (
             String hash,
@@ -58,12 +59,20 @@ namespace MetadataDownloader
                         var fLen = manager.Files.OrderByDescending (t => t.Length).First ().Length;
 
                         // here I can decide if the torrent largest file already exists, then I can skip to save it
-                        if (dao.HasBeenDownloaded (
-                            new MDownloadedFile () {
-                                FileName = fName,
-                                Length = fLen
-                            })) {
+                        if (
+                            dao.HasBeenDownloaded (
+                                new MDownloadedFile () {
+                                    FileName = fName,
+                                    Length = fLen
+                                })
+
+                            ||
+
+                            !new FileNameManager ().IsMostlyLatin (manager.Torrent.Name)
+                            ) {
                             // skip file
+                            skippedCount++;
+
                             Console.WriteLine ($"DownloadAsync()  Skipping torrent {Red (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, file exists {fName}, {fLen}");
 
                         } else {
@@ -122,11 +131,12 @@ namespace MetadataDownloader
             while (true) {
                 await Task.Delay (ac.MAIN_LOOP_INTERVAL);
 
-                Console.WriteLine ("MainLoop()       Checking for torrents count {0} / {1} - Dowloaded {2}, Timedout {3} - DHT nodes {4}",
+                Console.WriteLine ("MainLoop()       Checking for torrents count {0} / {1} - Dowloaded {2}, Timedout {3}, Skipped {4} - DHT nodes {5}",
                     engine.Torrents.Count,
                     ac.TORRENT_PARALLEL_LIMIT - 1,
                     downloadedCount,
                     timeoutCount,
+                    skippedCount,
                     engine.Dht.NodeCount
                     );
 
