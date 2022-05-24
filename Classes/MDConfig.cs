@@ -21,6 +21,7 @@ namespace MetadataDownloader
         public readonly string MAGNET_PREFIX = ConfigurationManager.AppSettings["MAGNET_PREFIX"];
 
         public readonly string SDB_URL = ConfigurationManager.AppSettings["SDB_URL"];
+        public readonly string SDB_DLD_URL = ConfigurationManager.AppSettings["SDB_DLD_URL"];
 
     }
 }

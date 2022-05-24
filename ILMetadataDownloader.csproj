@@ -54,10 +54,10 @@
     <Compile Include="Classes\MDConfig.cs" />
     <Compile Include="Classes\CommandLineOptions.cs" />
     <Compile Include="Classes\DAO.cs" />
-    <Compile Include="Classes\DAOModel.cs" />
     <Compile Include="Classes\QueueManager.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Classes\TestManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="099_loadHashesToDB.cmd">

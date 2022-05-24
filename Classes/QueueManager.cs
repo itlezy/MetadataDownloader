@@ -1,9 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+
+using ILCommon.IO;
+using ILCommon.Model;
 
 using MonoTorrent;
 using MonoTorrent.Client;
@@ -14,9 +18,9 @@ namespace MetadataDownloader
 {
     class QueueManager
     {
-        private MDConfig ac = new MDConfig ();
-        private DAO dao = new DAO ();
-        private int timeoutCount = 0, downloadedCount = 0;
+        MDConfig ac = new MDConfig ();
+        DAO dao = new DAO ();
+        int timeoutCount = 0, downloadedCount = 0;
 
         public async Task DownloadAsync (
             String hash,
@@ -37,6 +41,7 @@ namespace MetadataDownloader
                     Console.WriteLine (
                         $"DownloadAsync()  Metadata Received {Green (magnetLink.InfoHashes.V1.ToHex ().ToLower ())} - * [ {Magenta (manager.Torrent.Name)} ] * -");
 
+
                     //manager.Files.OrderByDescending (t => t.Length).First ().FullPath
 
                     dao.UpdateHashId (
@@ -48,13 +53,28 @@ namespace MetadataDownloader
                             Timeout = false
                         });
 
-                    downloadedCount++;
-                }
+                    try {
+                        var fName = manager.Files.OrderByDescending (t => t.Length).First ().Path;
+                        var fLen = manager.Files.OrderByDescending (t => t.Length).First ().Length;
 
-                try {
-                    File.Copy (manager.MetadataPath, ac.TORRENT_OUTPUT_PATH + manager.Torrent.Name + ".torrent");
-                } catch (Exception ex) {
-                    Console.Error.WriteLine (ex.Message);
+                        // here I can decide if the torrent largest file already exists, then I can skip to save it
+                        if (dao.HasBeenDownloaded (
+                            new MDownloadedFile () {
+                                FileName = fName,
+                                Length = fLen
+                            })) {
+                            // skip file
+                            Console.WriteLine ($"DownloadAsync()  Skipping torrent {Red (magnetLink.InfoHashes.V1.ToHex ().ToLower ())}, file exists {fName}, {fLen}");
+
+                        } else {
+                            downloadedCount++;
+
+                            File.Copy (manager.MetadataPath, ac.TORRENT_OUTPUT_PATH + manager.Torrent.Name + ".torrent");
+                        }
+                    } catch (Exception ex) {
+                        Console.Error.WriteLine (ex.Message);
+                    }
+
                 }
 
                 await manager.StopAsync (new TimeSpan (0, 0, ac.TORRENT_STOP_TIMEOUT));
@@ -67,6 +87,11 @@ namespace MetadataDownloader
             }
         }
 
+        /// <summary>
+        /// Main loop which attempts to download torrent metadata in a queue
+        /// </summary>
+        /// <param name="token"></param>
+        /// <returns></returns>
         public async Task MainLoop (CancellationToken token)
         {
             // Give an example of how settings can be modified for the engine.
@@ -145,6 +170,32 @@ namespace MetadataDownloader
                     break;
                 }
             }
+        }
+
+        /// <summary>
+        /// Reads torrent files metadata from disk and update the DB records,
+        /// so to avoid duplicate downloads when we've already downloaded a torrent
+        /// </summary>
+        /// <param name="inputDir"></param>
+        public void LoadDownloadedTorrents (String inputDir)
+        {
+            var ff = new IOManager ().ListDownloadedTorrents (inputDir);
+            var mf = new List<MTorr> ();
+
+            foreach (var f in ff.MDownloadedTorrs) {
+                mf.Add (
+                    new MTorr () {
+                        HashId = f.HashId,
+                        Name = f.Name,
+                        Downloaded = true,
+                        Length = f.Length,
+                        Processed = true,
+                        Timeout = false,
+                        DownloadedTime = DateTime.UtcNow
+                    });
+            }
+
+            new DAO ().UpdateDownloadedTorrentsStatus (mf);
         }
     }
 }

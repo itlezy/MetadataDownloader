@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using ILCommon.Model;
+
 using SQLite;
 
 namespace MetadataDownloader
@@ -13,7 +15,7 @@ namespace MetadataDownloader
     {
         private MDConfig ac = new MDConfig ();
 
-        public void CreateSQLiteTables ()
+        public void CreateTables ()
         {
             using (var db = new SQLiteConnection (ac.SDB_URL)) {
                 db.CreateTable<MTorrLog> ();
@@ -28,6 +30,25 @@ namespace MetadataDownloader
                 );
 
                 Console.WriteLine ("Unique index created {0}", ins);
+            }
+
+        }
+
+        public int UpdateDownloadedTorrentsStatus (List<MTorr> torrs)
+        {
+            using (var db = new SQLiteConnection (ac.SDB_URL)) {
+                var ins = db.InsertAll (torrs, " OR IGNORE ");
+
+                Console.WriteLine ("Loaded {0} records out of {1} ..", ins, torrs.Count);
+
+            }
+
+            using (var db = new SQLiteConnection (ac.SDB_URL)) {
+                var ins = db.UpdateAll (torrs);
+
+                Console.WriteLine ("Updated {0} records out of {1} ..", ins, torrs.Count);
+
+                return ins;
             }
 
         }
@@ -55,11 +76,20 @@ namespace MetadataDownloader
             }
         }
 
+        public bool HasBeenDownloaded (MDownloadedFile mDownloadedFile)
+        {
+            using (var db = new SQLiteConnection (ac.SDB_DLD_URL, SQLiteOpenFlags.ReadOnly)) {
+                return db.ExecuteScalar<int> (
+                    "SELECT COUNT(*) FROM MDownloadedFile M WHERE (M.FileName = ? AND M.LENGTH = ?)",
+                    mDownloadedFile.FileName,
+                    mDownloadedFile.Length) > 0;
+            }
+        }
+
         public void UpdateHashId (MTorr mTorrentU)
         {
             using (var db = new SQLiteConnection (ac.SDB_URL)) {
-                var query = String.Format ("SELECT * FROM MTorr WHERE HashId = '{0}' LIMIT 1", mTorrentU.HashId);
-                var mTorr = db.Query<MTorr> (query).FirstOrDefault ();
+                var mTorr = db.Query<MTorr> ("SELECT * FROM MTorr WHERE HashId = ? LIMIT 1", mTorrentU.HashId).FirstOrDefault ();
 
                 Console.WriteLine ("UpdateHashId()   Found Torrent {0}, countSeen {2}, processedTime {1}",
                     mTorr.HashId,
@@ -82,7 +112,7 @@ namespace MetadataDownloader
             }
         }
 
-        public void LoadHashesToDBSQLite (String inputFile)
+        public void LoadHashesFromFile (String inputFile) //TODO: this should be split in IO and DAO
         {
             var lines = File.ReadAllLines (inputFile);
 

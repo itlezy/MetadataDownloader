@@ -35,10 +35,16 @@ namespace MetadataDownloader
         {
             if (opts.CreateTables) {
 
-                new DAO ().CreateSQLiteTables ();
+                new DAO ().CreateTables ();
             } else if (opts.LoadHashes && File.Exists (opts.InputLogFile)) {
 
-                new DAO ().LoadHashesToDBSQLite (opts.InputLogFile);
+                new DAO ().LoadHashesFromFile (opts.InputLogFile);
+            } else if (opts.LoadDownloadedTorrents && Directory.Exists (opts.InputDir)) {
+
+                new QueueManager ().LoadDownloadedTorrents (opts.InputDir);
+            } else if (opts.RunTests) {
+
+                new TestManager ().RunTests ();
             } else {
 
                 MetadataDownload ();
