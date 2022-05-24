@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace MetadataDownloader
 {
-    class ApplcConfig
+    class MDConfig
     {
         // The timeout will be determined by TORRENT_PARALLEL_LIMIT * MAIN_LOOP_INTERVAL as torrents get removed on a FIFO logic basis
         public readonly int MAIN_LOOP_INTERVAL = int.Parse (ConfigurationManager.AppSettings["MAIN_LOOP_INTERVAL"]);

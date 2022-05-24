@@ -1,13 +1,9 @@
 ﻿using System;
-using System.Configuration;
 using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-
-using MongoDB.Driver;
 
 using MonoTorrent;
 using MonoTorrent.Client;
@@ -18,71 +14,9 @@ namespace MetadataDownloader
 {
     class QueueManager
     {
-        private ApplcConfig ac = new ApplcConfig ();
-
+        private MDConfig ac = new MDConfig ();
+        private DAO dao = new DAO ();
         private int timeoutCount = 0, downloadedCount = 0;
-
-        private String GetNextHashId ()
-        {
-            var client = new MongoClient (ac.DB_URL);
-            var database = client.GetDatabase (ac.DB_NAME);
-            var collection = database.GetCollection<MTorrent> (ac.DB_COLLECTION_NAME);
-
-            Expression<Func<MTorrent, bool>> filter = m => (
-                m.Processed == false &&
-                m.CountSeen > 1
-            );
-
-            var update = Builders<MTorrent>.Update
-            .Set (m => m.Processed, true)
-            .Set (m => m.ProcessedTime, DateTime.UtcNow);
-
-            var options = new FindOneAndUpdateOptions<MTorrent, MTorrent> {
-                IsUpsert = false,
-                ReturnDocument = ReturnDocument.After
-            };
-
-            var mTorrent = collection.FindOneAndUpdate (filter, update, options);
-
-            Console.WriteLine ("GetNextHashId()  Found Torrent {0}, countSeen {2}, processedTime {1}",
-                mTorrent.Id,
-                mTorrent.ProcessedTime,
-                mTorrent.CountSeen
-                );
-
-            return mTorrent.Id;
-        }
-
-        private void UpdateHashId (MTorrent mTorrentU)
-        {
-            var client = new MongoClient (ac.DB_URL);
-            var database = client.GetDatabase (ac.DB_NAME);
-            var collection = database.GetCollection<MTorrent> (ac.DB_COLLECTION_NAME);
-
-            Expression<Func<MTorrent, bool>> filter = m => (m.Id == mTorrentU.Id);
-
-            var update = Builders<MTorrent>.Update
-                .Set (m => m.Processed, true)
-                .Set (m => m.Downloaded, !mTorrentU.Timeout)
-                .Set (m => m.DownloadedTime, DateTime.UtcNow)
-                .Set (m => m.Name, mTorrentU.Name)
-                .Set (m => m.Comment, mTorrentU.Comment)
-                .Set (m => m.Length, mTorrentU.Length)
-                .Set (m => m.Timeout, mTorrentU.Timeout);
-
-            var options = new FindOneAndUpdateOptions<MTorrent, MTorrent> {
-                IsUpsert = false,
-                ReturnDocument = ReturnDocument.After
-            };
-
-            var mTorrentR = collection.FindOneAndUpdate (filter, update, options);
-
-            //Console.WriteLine ("UpdateHashId()   Torrent {0}, processedTime {1}, downloadedTime {2}, timeout {3}",
-            //    mTorrentR.Id,
-            //    mTorrentR.ProcessedTime,
-            //    mTorrentR.DownloadedTime,
-            //    mTorrentR.Timeout);
-        }
 
         public async Task DownloadAsync (
             String hash,
@@ -105,9 +39,9 @@ namespace MetadataDownloader
 
                     //manager.Files.OrderByDescending (t => t.Length).First ().FullPath
 
-                    UpdateHashId (
-                        new MTorrent () {
-                            Id = magnetLink.InfoHashes.V1.ToHex ().ToLower (),
+                    dao.UpdateHashId (
+                        new MTorr () {
+                            HashId = magnetLink.InfoHashes.V1.ToHex ().ToLower (),
                             Name = manager.Torrent.Name,
                             Length = manager.Torrent.Size,
                             Comment = manager.Torrent.Comment,
@@ -172,7 +106,7 @@ namespace MetadataDownloader
                     );
 
                 if (engine.Torrents.Count < ac.TORRENT_PARALLEL_LIMIT) {
-                    var hash = GetNextHashId ();
+                    var hash = dao.GetNextHashId ();
 
                     DownloadAsync (hash, engine, token);
                 } else {
@@ -180,14 +114,14 @@ namespace MetadataDownloader
                     var torrent = engine.Torrents.First ();
                     Console.WriteLine ($"MainLoop()       Removing torrent {Red (torrent.InfoHashes.V1.ToHex ().ToLower ())}");
 
-                    UpdateHashId (
-                        new MTorrent () {
-                            Id = torrent.InfoHashes.V1.ToHex ().ToLower (),
-                            Name = null,
-                            Length = 0,
-                            Comment = null,
-                            Timeout = true
-                        });
+                    dao.UpdateHashId (
+                       new MTorr () {
+                           HashId = torrent.InfoHashes.V1.ToHex ().ToLower (),
+                           Name = null,
+                           Length = 0,
+                           Comment = null,
+                           Timeout = true
+                       });
 
                     timeoutCount++;
 

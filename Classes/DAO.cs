@@ -11,15 +11,10 @@ namespace MetadataDownloader
 {
     class DAO
     {
-        private ApplcConfig ac = new ApplcConfig ();
+        private MDConfig ac = new MDConfig ();
 
         public void CreateSQLiteTables ()
         {
-            using (var db = new SQLiteConnection (ac.SDB_URL)) {
-                db.CreateTable<MTorrLog> ();
-                db.CreateTable<MTorr> ();
-            }
-
             using (var db = new SQLiteConnection (ac.SDB_URL)) {
                 db.CreateTable<MTorrLog> ();
                 db.CreateTable<MTorr> ();
@@ -144,7 +139,7 @@ namespace MetadataDownloader
                 var ins = db.Execute (@"UPDATE MTorr
                                         SET
                                             CountSeen = (SELECT COUNT(MTorrLog.HashId) AS CountSeen FROM MTorrLog WHERE MTorr.HashId = MTorrLog.HashId GROUP BY MTorrLog.HashId),
-                                            LastSeen =  (SELECT MAX(MTorrLog.SeenAt)   AS LastSeen  FROM MTorrLog WHERE MTorr.HashId = MTorrLog.HashId GROUP BY MTorrLog.HashId)
+                                            LastSeen  = (SELECT   MAX(MTorrLog.SeenAt) AS LastSeen  FROM MTorrLog WHERE MTorr.HashId = MTorrLog.HashId GROUP BY MTorrLog.HashId)
                                         WHERE EXISTS (
                                             SELECT HashId FROM MTorrLog WHERE MTorrLog.HashId = MTorr.HashId
                                         )");
